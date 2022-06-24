@@ -77,23 +77,29 @@ export const pokemonUtils = {
         ctx.drawImage(img, 0, 0, 100, 100);
       }
     }
-    const atc = new MessageAttachment(
+    const typesAtc = new MessageAttachment(
       canvas.toBuffer("image/png"),
       "types.png"
     );
+    let genderEmoji: string;
+    if (pokemon.gender == "male") {
+      genderEmoji = process.env.EMOJI_MALE;
+    } else if (pokemon.gender == "female") {
+      genderEmoji = process.env.EMOJI_FEMALE;
+    }
     const embed = utils.Embed(
       wild
-        ? `**A wild ${pokemon.name} appeared!**`
+        ? `**A wild ${pokemon.name} ${genderEmoji} appeared!**`
         : `**${username.endsWith("s") ? username + "'" : username + "'s"} ${
             pokemon.name
-          }**`,
+          } ${genderEmoji}**`,
       `**Level: \`${pokemon.level}\`
-        HP: \`${pokemon.base_stats.hp}\`
-        Attack: \`${pokemon.base_stats.attack}\`
-        Defense: \`${pokemon.base_stats.defense}\`
-        Special Attack: \`${pokemon.base_stats.special_attack}\`
-        Special Defense: \`${pokemon.base_stats.special_defense}\`
-        Speed: \`${pokemon.base_stats.speed}\`
+        HP: \`${pokemon.stats.hp}\`
+        Attack: \`${pokemon.stats.attack}\`
+        Defense: \`${pokemon.stats.defense}\`
+        Special Attack: \`${pokemon.stats.special_attack}\`
+        Special Defense: \`${pokemon.stats.special_defense}\`
+        Speed: \`${pokemon.stats.speed}\`
         
         Moves: 
         1. \`${pokemon.moves[0].name}\`
@@ -108,63 +114,65 @@ export const pokemonUtils = {
         ? "LUMINOUS_VIVID_PINK"
         : (pokemon.data.pokedex_color.toUpperCase() as ColorResolvable)
     );
-    return { embed, atc };
+    return { embed, typesAtc };
   },
   async update(id: string, pokemon: ClientPokemon, releasing: boolean = false) {
     if (releasing) {
-      client.database.pull(`${id}.pokemons`, pokemon);
+      const pokemons: ClientPokemon[] = await client.database.get(
+        `${id}.pokemons`
+      );
+      pokemons.splice(
+        pokemons.indexOf(pokemons.find((p) => p.name == pokemon.name)),
+        1
+      );
+      await client.database.set(`${id}.pokemons`, pokemons);
     } else {
-      client.database.push(`${id}.pokemons`, pokemon);
+      await client.database.push(`${id}.pokemons`, pokemon);
     }
   },
-  async Catch(
-    int: MessageComponentInteraction,
-    ballModifier: number,
-    embed: MessageEmbed,
-    actionRow: MessageActionRow,
-    pokemon: ClientPokemon,
-    collector: InteractionCollector<MessageComponentInteraction<CacheType>>
-  ) {
-    utils.updateButtons(actionRow);
-    await int.editReply({
-      embeds: [embed],
-      components: [actionRow],
-    });
-    const catchValue =
-      (pokemon.base_stats.hp * pokemon.data.catch_rate * ballModifier) /
-      (pokemon.base_stats.hp * 3);
-    const catched = Math.floor(
-      1048560 / Math.sqrt(Math.sqrt(16711680 / catchValue))
-    );
-    for (let i = 1; i <= 3; i++) {
-      const rnd = utils.rng(0, 65535);
-      embed.setFooter({
-        text: `${i} shake${i > 1 ? "s" : ""}...`,
-      });
-      await int.editReply({
-        embeds: [embed],
-      });
-      await utils.sleep(1500);
-      if (rnd >= catched) {
-        embed.setFooter({
-          text: `Oh no! ${pokemon.name} broke free!`,
-        });
-        utils.updateButtons(actionRow, false);
-        await int.editReply({
-          embeds: [embed],
-          components: [actionRow],
-        });
-        return false;
+  findPokemon(name: string, profileData: Schema) {
+    let found: boolean | ClientPokemon = false;
+    for (const pokemon of profileData.pokemons) {
+      if (pokemon.name == name) {
+        found = pokemon;
       }
     }
-    collector.stop();
-    embed.setFooter({
-      text: `Yes! ${pokemon.name} was caught!`,
+    return found;
+  },
+  setAllStats(pokemon: ClientPokemon) {
+    return (pokemon.stats = {
+      hp: calcStat(pokemon, "hp"),
+      attack: calcStat(pokemon, "attack"),
+      defense: calcStat(pokemon, "defense"),
+      special_attack: calcStat(pokemon, "special_attack"),
+      special_defense: calcStat(pokemon, "special_defense"),
+      speed: calcStat(pokemon, "speed"),
     });
-    await pokemonUtils.update(int.user.id, pokemon);
-    await int.editReply({
-      embeds: [embed],
-    });
-    return true;
   },
 };
+
+function calcStat(pokemon: ClientPokemon, stat: string) {
+  if (stat == "hp") {
+    const calc =
+      Math.floor(
+        0.01 *
+          (2 * pokemon.base_stats.hp +
+            pokemon.IVs.hp +
+            Math.floor(0.25 * pokemon.EVs.hp)) *
+          pokemon.level
+      ) +
+      pokemon.level +
+      10;
+    return calc;
+  } else {
+    const calc =
+      Math.floor(
+        0.01 *
+          (2 * pokemon.base_stats[stat] +
+            pokemon.IVs[stat] +
+            Math.floor(0.25 * pokemon.EVs[stat])) *
+          pokemon.level
+      ) + 5;
+    return calc;
+  }
+}

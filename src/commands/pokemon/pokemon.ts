@@ -2,9 +2,9 @@ import {
   MessageActionRow,
   MessageButton,
   MessageComponentInteraction,
+  MessageEmbed,
 } from "discord.js";
-import { Pokemon, pokemonAPI } from "pkmnapi";
-import { client } from "../..";
+import { pokemonAPI } from "pkmnapi";
 import { Command } from "../../typings/Command";
 import { pokemonUtils, utils } from "../../utils/general";
 import { ClientPokemon } from "../../utils/misc/Pokemon";
@@ -19,12 +19,38 @@ export default new Command({
       description: "Encounter a wild Pokémon!",
       type: "SUB_COMMAND",
     },
+    {
+      name: "show",
+      description: "Display one of your Pokémons.",
+      type: "SUB_COMMAND",
+      options: [
+        {
+          name: "pokemon",
+          description: "The Pokémon you want to display",
+          type: "STRING",
+          required: false,
+        },
+      ],
+    },
+    {
+      name: "release",
+      description: "Release one of your Pokémons.",
+      type: "SUB_COMMAND",
+      options: [
+        {
+          name: "pokemon",
+          description: "The Pokémon you want to release.",
+          type: "STRING",
+          required: true,
+        },
+      ],
+    },
   ],
-  execute: async ({ interaction, profileData }) => {
+  execute: async ({ interaction, args, profileData }) => {
     const subCommand = interaction.options.getSubcommand();
     if (subCommand == "encounter") {
       let ballModifier: number;
-      let catched: boolean;
+      let wasCatched: boolean;
       const actionRow = new MessageActionRow().addComponents(
         new MessageButton()
           .setCustomId("pokeballs")
@@ -64,7 +90,7 @@ export default new Command({
       );
       await interaction.editReply({
         embeds: [msgData.embed],
-        files: [msgData.atc],
+        files: [msgData.typesAtc],
         components: [actionRow],
       });
       const filter = async (int: MessageComponentInteraction) => {
@@ -98,30 +124,118 @@ export default new Command({
             ballModifier = 2;
             break;
         }
-        catched = await pokemonUtils.Catch(
-          int,
-          ballModifier,
-          msgData.embed,
-          actionRow,
-          pokemon,
-          collector
-        );
+        utils.updateButtons(actionRow);
         await int.editReply({
           embeds: [msgData.embed],
-          files: [msgData.atc],
+          components: [actionRow],
+        });
+        const catchValue =
+          (pokemon.base_stats.hp * pokemon.data.catch_rate * ballModifier) /
+          (pokemon.base_stats.hp * 3);
+        const catched = Math.floor(
+          1048560 / Math.sqrt(Math.sqrt(16711680 / catchValue))
+        );
+        for (let i = 1; i <= 3; i++) {
+          const rnd = utils.rng(0, 65535);
+          msgData.embed.setFooter({
+            text: `${i} shake${i > 1 ? "s" : ""}...`,
+          });
+          await int.editReply({
+            embeds: [msgData.embed],
+          });
+          await utils.sleep(1500);
+          if (rnd >= catched) {
+            msgData.embed.setFooter({
+              text: `Oh no! ${pokemon.name} broke free!`,
+            });
+            utils.updateButtons(actionRow, false);
+            await int.editReply({
+              embeds: [msgData.embed],
+              components: [actionRow],
+            });
+            return;
+          }
+        }
+        wasCatched = true;
+        collector.stop();
+        msgData.embed.setFooter({
+          text: `Yes! ${pokemon.name} was caught!`,
+        });
+        await pokemonUtils.update(int.user.id, pokemon);
+        await int.editReply({
+          embeds: [msgData.embed],
+        });
+        await int.editReply({
+          embeds: [msgData.embed],
+          files: [msgData.typesAtc],
         });
       });
       collector.on("end", async () => {
-        if (catched) return;
-        else {
+        if (wasCatched) {
+          msgData.embed.setTitle(`**Yes! ${pokemon.name} was caught!**`);
+        } else {
           msgData.embed.setTitle(`**${pokemon.name} ran away!**`);
-          await interaction.editReply({
-            embeds: [msgData.embed],
-          });
-          return;
         }
+        await interaction.editReply({
+          embeds: [msgData.embed],
+        });
+        return;
       });
       return;
+    } else if (subCommand == "show") {
+      const str = args.getString("pokemon", false);
+      if (!str) {
+        const allPkmns: string[] = [];
+        for (const pokemon of profileData.pokemons) {
+          allPkmns.push(
+            `**\`${pokemon.name}\` - ${
+              pokemon.gender == "male"
+                ? process.env.EMOJI_MALE
+                : process.env.EMOJI_FEMALE
+            } **`
+          );
+        }
+        const allPkmnsEmbed = utils.Embed(
+          `**${
+            interaction.user.username.endsWith("s")
+              ? interaction.user.username + "'"
+              : interaction.user.username + "'s"
+          } Pokémons!**`,
+          allPkmns.join("\n"),
+          interaction.user.displayAvatarURL()
+        );
+        await interaction.editReply({
+          embeds: [allPkmnsEmbed],
+        });
+        return;
+      }
+      const pokemon = pokemonUtils.findPokemon(str, profileData);
+      if (!pokemon) {
+        await interaction.editReply(`You don't have **\`${str}\`**!`);
+        return;
+      } else {
+        const msgData = await pokemonUtils.setInEmbed(
+          pokemon,
+          false,
+          interaction.user.username
+        );
+        await interaction.editReply({
+          embeds: [msgData.embed],
+          files: [msgData.typesAtc],
+        });
+        return;
+      }
+    } else if (subCommand == "release") {
+      const str = args.getString("pokemon");
+      const pokemon = pokemonUtils.findPokemon(str, profileData);
+      if (!pokemon) {
+        await interaction.editReply(`You don't have \`${str}\`!`);
+        return;
+      } else {
+        await pokemonUtils.update(interaction.user.id, pokemon, true);
+        await interaction.editReply(`**You released \`${pokemon.name}\`!**`);
+        return;
+      }
     }
   },
 });
