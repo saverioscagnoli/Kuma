@@ -12,7 +12,6 @@ import { QuickDB } from "quick.db";
 export class GoofyAhhClient extends Client {
   commands: Collection<string, CommandType> = new Collection();
   cooldowns: QuickDB;
-  collectors: QuickDB;
   database: QuickDB;
   constructor() {
     super({
@@ -29,9 +28,6 @@ export class GoofyAhhClient extends Client {
     });
     this.cooldowns = new QuickDB({
       filePath: `${__dirname}../../../databases/cooldowns.sqlite`,
-    });
-    this.collectors = new QuickDB({
-      filePath: `${__dirname}../../../databases/collectors.sqlite`,
     });
   }
   async build() {

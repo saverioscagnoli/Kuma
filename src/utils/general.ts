@@ -117,18 +117,21 @@ export const pokemonUtils = {
     return { embed, typesAtc };
   },
   async update(id: string, pokemon: ClientPokemon, releasing: boolean = false) {
+    let dbID = `${id}.pokemons`;
+    const pokemons: ClientPokemon[] = await client.database.get(dbID);
+    if (pokemons.length >= 6) {
+      dbID = `${id}.pc`;
+    }
     if (releasing) {
-      const pokemons: ClientPokemon[] = await client.database.get(
-        `${id}.pokemons`
-      );
       pokemons.splice(
         pokemons.indexOf(pokemons.find((p) => p.name == pokemon.name)),
         1
       );
-      await client.database.set(`${id}.pokemons`, pokemons);
+      await client.database.set(dbID, pokemons);
     } else {
-      await client.database.push(`${id}.pokemons`, pokemon);
+      await client.database.push(dbID, pokemon);
     }
+    console.log(pokemons.length);
   },
   findPokemon(name: string, profileData: Schema) {
     let found: boolean | ClientPokemon = false;

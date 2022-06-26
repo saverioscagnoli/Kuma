@@ -4,7 +4,10 @@ import {
   CommandInteraction,
   CommandInteractionOptionResolver,
   GuildMember,
+  InteractionCollector,
+  MessageComponentInteraction,
   PermissionResolvable,
+  CacheType,
 } from "discord.js";
 import { GoofyAhhClient } from "./Client";
 import { Schema } from "./Schema";
@@ -17,6 +20,10 @@ interface ExecuteOptions {
   client: GoofyAhhClient;
   interaction: CommandInteraction;
   args: CommandInteractionOptionResolver;
+  collectors: Map<
+    string,
+    InteractionCollector<MessageComponentInteraction<CacheType>>
+  >;
   profileData: Schema;
 }
 

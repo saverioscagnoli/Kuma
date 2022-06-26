@@ -2,7 +2,6 @@ import {
   MessageActionRow,
   MessageButton,
   MessageComponentInteraction,
-  MessageEmbed,
 } from "discord.js";
 import { pokemonAPI } from "pkmnapi";
 import { Command } from "../../typings/Command";
@@ -46,7 +45,7 @@ export default new Command({
       ],
     },
   ],
-  execute: async ({ interaction, args, profileData }) => {
+  execute: async ({ interaction, args, profileData, collectors }) => {
     const subCommand = interaction.options.getSubcommand();
     if (subCommand == "encounter") {
       let ballModifier: number;
@@ -110,6 +109,7 @@ export default new Command({
         filter,
         time: utils.rng(50000, 100000),
       });
+      collectors.set(interaction.user.id, collector);
       collector.on("collect", async (int) => {
         await int.deferUpdate();
         await sql.update(int.user.id, int.customId, 0, profileData);
@@ -171,6 +171,7 @@ export default new Command({
         });
       });
       collector.on("end", async () => {
+        collectors.delete(interaction.user.id);
         if (wasCatched) {
           msgData.embed.setTitle(`**Yes! ${pokemon.name} was caught!**`);
         } else {
@@ -232,8 +233,50 @@ export default new Command({
         await interaction.editReply(`You don't have \`${str}\`!`);
         return;
       } else {
-        await pokemonUtils.update(interaction.user.id, pokemon, true);
-        await interaction.editReply(`**You released \`${pokemon.name}\`!**`);
+        const actionRow = new MessageActionRow().addComponents(
+          new MessageButton()
+            .setCustomId("no")
+            .setLabel("No")
+            .setStyle("SECONDARY"),
+          new MessageButton()
+            .setCustomId("yes")
+            .setLabel("Yes")
+            .setStyle("DANGER")
+        );
+        await interaction.editReply({
+          content: `Are you sure you want to release **\`${pokemon.name}\`**?`,
+          components: [actionRow],
+        });
+        const filter = (int: MessageComponentInteraction) => {
+          return interaction.user.id == int.user.id;
+        };
+        const collector = interaction.channel.createMessageComponentCollector({
+          filter,
+          max: 1,
+          time: 60000,
+        });
+        collectors.set(interaction.user.id, collector);
+        let released = false;
+        collector.on("collect", async (int) => {
+          await int.deferUpdate();
+          if (int.customId == "yes") {
+            await pokemonUtils.update(int.user.id, pokemon, true);
+            released = true;
+          }
+        });
+        collector.on("end", async () => {
+          collectors.delete(interaction.user.id);
+          if (released) {
+            await interaction.editReply(
+              `You did't release **\`${pokemon.name}\`**`
+            );
+          } else {
+            await interaction.editReply(
+              `You released **\`${pokemon.name}\`! Bye Bye!**`
+            );
+          }
+          return;
+        });
         return;
       }
     }
