@@ -10,18 +10,25 @@ export default new Command({
   name: "minesweeper",
   description: "Play Minesweeper!",
   execute: async ({ interaction }) => {
-    const grid: MessageActionRow[] = [];
+    const grid = [];
     const field: string[][] = [[], [], [], [], [], [], [], []];
     for (let i = 0; i < 8; i++) {
-      for (let k = 0; k < 8; k++) {
-        if (utils.rng(1, 3) == 1) {
-          field[i][k] = `||${process.env.EMOJI_MINE}||`;
+      for (let k = 0; k < 9; k++) {
+        if (k == 8) {
+          field[i].push("\n");
         } else {
-          field[i][k] = "||aa||";
+          if (utils.rng(1, 3) == 1) {
+            field[i][k] = `||${process.env.EMOJI_MINE}||`;
+          } else {
+            field[i][k] = `||${process.env.EMOJI_MINE}||`;
+          }
         }
       }
     }
-    await interaction.editReply(String(field.join(" ")));
+    for (let i = 0; i < field.length; i++) {
+      grid.push(field[i].join(" "));
+    }
+    await interaction.editReply("\n" + String(grid.join(" ")));
     const filter = (int: MessageComponentInteraction) => {
       return int.user.id == interaction.user.id;
     };

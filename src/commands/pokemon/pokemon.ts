@@ -44,6 +44,20 @@ export default new Command({
         },
       ],
     },
+    {
+      name: "evolve",
+      description:
+        "Evolve one of your Pokémons, if it has the right requirements.",
+      type: "SUB_COMMAND",
+      options: [
+        {
+          name: "pokemon",
+          description: "The Pokémon you want to evolve.",
+          type: "STRING",
+          required: true,
+        },
+      ],
+    },
   ],
   execute: async ({ interaction, args, profileData, collectors }) => {
     const subCommand = interaction.options.getSubcommand();
@@ -278,6 +292,29 @@ export default new Command({
           return;
         });
         return;
+      }
+    } else if (subCommand == "evolve") {
+      const str = args.getString("pokemon");
+      const pokemon = pokemonUtils.findPokemon(str, profileData);
+      if (!pokemon) {
+        await interaction.editReply(`You don't have \`${str}\`!`);
+        return;
+      } else {
+        if (pokemon.evolution_chain.length == 0) {
+          await interaction.editReply(`**\`${pokemon.name}\` can't evolve!**`);
+          return;
+        }
+        const forms = [];
+        for (let i = 0; i < pokemon.evolution_chain.length; i++) {
+          forms.push({
+            1: pokemon.evolution_chain[i].base_form,
+            2: pokemon.evolution_chain[i].first_evolution.name,
+            3:
+              pokemon.evolution_chain[i].second_evolution.name ??
+              pokemon.evolution_chain[i].second_evolution.name,
+          });
+        }
+        pokemon.name
       }
     }
   },

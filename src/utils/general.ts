@@ -131,7 +131,6 @@ export const pokemonUtils = {
     } else {
       await client.database.push(dbID, pokemon);
     }
-    console.log(pokemons.length);
   },
   findPokemon(name: string, profileData: Schema) {
     let found: boolean | ClientPokemon = false;
@@ -151,6 +150,32 @@ export const pokemonUtils = {
       special_defense: calcStat(pokemon, "special_defense"),
       speed: calcStat(pokemon, "speed"),
     });
+  },
+  async levelUp(id: string) {
+    const team: ClientPokemon[] = await client.database.get(`${id}.pokemons`);
+    if (team.length < 1) return false;
+    const pokemon: ClientPokemon = utils.pick(team);
+    await client.database.set(
+      `${id}.pokemons[${team.indexOf(pokemon)}].exp`,
+      (pokemon.exp += utils.rng(20, 35))
+    );
+    console.log(pokemon.name);
+    console.log(pokemon.exp);
+    if (pokemon.exp >= 100) {
+      await client.database.set(
+        `${id}.pokemons[${team.indexOf(pokemon)}].level`,
+        (pokemon.level += 1)
+      );
+      await client.database.set(
+        `${id}.pokemons[${team.indexOf(pokemon)}].exp`,
+        0
+      );
+      await client.database.set(
+        `${id}.pokemons[${team.indexOf(pokemon)}].stats`,
+        pokemonUtils.setAllStats(pokemon)
+      );
+      return pokemon;
+    } else return false;
   },
 };
 

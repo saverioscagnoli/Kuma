@@ -28,6 +28,7 @@ export class ClientPokemon implements IClientPokemon {
   level: number;
   abilities: IPokemonAbility[];
   gender: string;
+  exp: number = 0;
   base_stats: IPokemonBaseStats;
   IVs: IPokemonBaseStats;
   EVs: IPokemonBaseStats;
